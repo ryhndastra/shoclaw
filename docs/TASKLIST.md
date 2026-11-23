@@ -22,11 +22,11 @@
 ---
 
 ### Phase 2: Configuration & Data Modeling
-- [ ] Define `Config` data structures (`general`, `performance`, `appearance`, `keybindings`)
-- [ ] Implement TOML config loader with automatic default fallback (`~/.config/shoclaw/config.toml`)
-- [ ] Define `Tab` struct with lifecycle states (`Active`, `Idle`, `Sleeping`)
-- [ ] Implement `TabManager` skeleton (tab collection, active index pointer, LRU tracking)
-- [ ] Write unit tests for config parsing and tab state transitions
+- [x] Define `Config` data structures (`general`, `performance`, `appearance`, `keybindings`)
+- [x] Implement TOML config loader with automatic default fallback (`~/.config/shoclaw/config.toml`)
+- [x] Define `Tab` struct with lifecycle states (`Active`, `Idle`, `Sleeping`)
+- [x] Implement `TabManager` skeleton (tab collection, active index pointer, LRU tracking)
+- [x] Write unit tests for config parsing and tab state transitions
 
 ---
 

@@ -18,7 +18,9 @@ impl TabManager {
         }
     }
 
-    pub fn create_tab(&mut self, url: impl Into<String>) -> u64 {
+    /// Creates a new tab, marks it active, and hibernates any excess inactive tabs.
+    /// Returns a tuple of (new_tab_id, Vec<hibernated_tab_ids>).
+    pub fn create_tab(&mut self, url: impl Into<String>) -> (u64, Vec<u64>) {
         let id = self.next_id;
         self.next_id += 1;
 
@@ -33,13 +35,15 @@ impl TabManager {
         self.tabs.push(new_tab);
         self.active_tab_id = Some(id);
 
-        self.enforce_hibernation_limit();
-        id
+        let hibernated = self.enforce_hibernation_limit();
+        (id, hibernated)
     }
 
-    pub fn switch_to_tab(&mut self, id: u64) -> bool {
+    /// Switches active focus to target tab, waking it if needed, and hibernates excess tabs.
+    /// Returns (success_bool, Vec<hibernated_tab_ids>).
+    pub fn switch_to_tab(&mut self, id: u64) -> (bool, Vec<u64>) {
         if !self.tabs.iter().any(|t| t.id == id) {
-            return false;
+            return (false, Vec::new());
         }
 
         // Demote current active tab to Idle
@@ -51,19 +55,22 @@ impl TabManager {
             }
         }
 
-        // Promote requested tab to Active (waking it up if sleeping)
+        // Promote requested tab to Active
         if let Some(tab) = self.get_tab_mut(id) {
             tab.mark_active();
             self.active_tab_id = Some(id);
         }
 
-        self.enforce_hibernation_limit();
-        true
+        let hibernated = self.enforce_hibernation_limit();
+        (true, hibernated)
     }
 
+    /// Closes a tab by ID. If it was active, activates adjacent neighbor.
+    /// Returns Option<new_active_tab_id>.
     pub fn close_tab(&mut self, id: u64) -> Option<u64> {
         let index = self.tabs.iter().position(|t| t.id == id)?;
-        self.tabs.remove(index);
+        let mut tab = self.tabs.remove(index);
+        tab.mark_sleeping(); // Ensure webview drop on close
 
         if self.tabs.is_empty() {
             self.active_tab_id = None;
@@ -87,19 +94,20 @@ impl TabManager {
         }
     }
 
-    pub fn enforce_hibernation_limit(&mut self) {
+    /// Enforces max_active_tabs ceiling using LRU. Returns list of IDs put to sleep.
+    pub fn enforce_hibernation_limit(&mut self) -> Vec<u64> {
         let loaded_count = self.tabs.iter().filter(|t| !t.is_sleeping()).count();
         if loaded_count <= self.max_active_tabs {
-            return;
+            return Vec::new();
         }
 
         let excess = loaded_count - self.max_active_tabs;
 
-        // Gather candidate tabs that can hibernate, sorted by oldest access (LRU)
+        // Gather candidate tabs that are currently loaded in RAM and can hibernate, sorted by oldest access (LRU)
         let mut candidates: Vec<(u64, std::time::Instant)> = self
             .tabs
             .iter()
-            .filter(|t| t.can_hibernate())
+            .filter(|t| !t.is_sleeping() && t.can_hibernate())
             .map(|t| (t.id, t.last_accessed))
             .collect();
 
@@ -107,11 +115,39 @@ impl TabManager {
 
         let to_hibernate: Vec<u64> = candidates.into_iter().take(excess).map(|(id, _)| id).collect();
 
-        for id in to_hibernate {
-            if let Some(tab) = self.get_tab_mut(id) {
+        for id in &to_hibernate {
+            if let Some(tab) = self.get_tab_mut(*id) {
                 tab.mark_sleeping();
             }
         }
+
+        to_hibernate
+    }
+
+    /// Returns the ID of the next tab in sequence.
+    pub fn next_tab_id(&self) -> Option<u64> {
+        if self.tabs.is_empty() {
+            return None;
+        }
+        let current_id = self.active_tab_id?;
+        let current_index = self.tabs.iter().position(|t| t.id == current_id)?;
+        let next_index = (current_index + 1) % self.tabs.len();
+        Some(self.tabs[next_index].id)
+    }
+
+    /// Returns the ID of the previous tab in sequence.
+    pub fn prev_tab_id(&self) -> Option<u64> {
+        if self.tabs.is_empty() {
+            return None;
+        }
+        let current_id = self.active_tab_id?;
+        let current_index = self.tabs.iter().position(|t| t.id == current_id)?;
+        let prev_index = if current_index == 0 {
+            self.tabs.len() - 1
+        } else {
+            current_index - 1
+        };
+        Some(self.tabs[prev_index].id)
     }
 
     pub fn get_tab(&self, id: u64) -> Option<&Tab> {
@@ -124,6 +160,11 @@ impl TabManager {
 
     pub fn active_tab(&self) -> Option<&Tab> {
         self.active_tab_id.and_then(|id| self.get_tab(id))
+    }
+
+    pub fn active_tab_mut(&mut self) -> Option<&mut Tab> {
+        let active_id = self.active_tab_id?;
+        self.get_tab_mut(active_id)
     }
 
     pub fn tab_count(&self) -> usize {
@@ -147,8 +188,8 @@ mod tests {
     #[test]
     fn test_tab_creation_and_activation() {
         let mut manager = TabManager::new(3);
-        let tab1 = manager.create_tab("https://duckduckgo.com");
-        let tab2 = manager.create_tab("https://github.com");
+        let (tab1, _) = manager.create_tab("https://google.com");
+        let (tab2, _) = manager.create_tab("https://github.com");
 
         assert_eq!(manager.tab_count(), 2);
         assert_eq!(manager.active_tab_id, Some(tab2));
@@ -160,15 +201,15 @@ mod tests {
     fn test_lru_hibernation_limit() {
         // Limit to 2 active tabs
         let mut manager = TabManager::new(2);
-        let tab1 = manager.create_tab("https://tab1.com");
-        let tab2 = manager.create_tab("https://tab2.com");
+        let (tab1, _) = manager.create_tab("https://tab1.com");
+        let (tab2, _) = manager.create_tab("https://tab2.com");
 
-        // Currently 2 tabs loaded
         assert_eq!(manager.active_memory_count(), 2);
         assert_eq!(manager.sleeping_tab_count(), 0);
 
         // Open 3rd tab: tab1 should be put to sleep
-        let tab3 = manager.create_tab("https://tab3.com");
+        let (tab3, hibernated) = manager.create_tab("https://tab3.com");
+        assert_eq!(hibernated, vec![tab1]);
         assert_eq!(manager.tab_count(), 3);
         assert_eq!(manager.active_memory_count(), 2);
         assert_eq!(manager.sleeping_tab_count(), 1);
@@ -177,7 +218,9 @@ mod tests {
         assert_eq!(manager.get_tab(tab3).unwrap().state, TabState::Active);
 
         // Switching back to sleeping tab1 should wake it up and hibernate tab2
-        manager.switch_to_tab(tab1);
+        let (success, hibernated2) = manager.switch_to_tab(tab1);
+        assert!(success);
+        assert_eq!(hibernated2, vec![tab2]);
         assert_eq!(manager.get_tab(tab1).unwrap().state, TabState::Active);
         assert_eq!(manager.get_tab(tab2).unwrap().state, TabState::Sleeping);
         assert_eq!(manager.active_memory_count(), 2);
@@ -186,13 +229,14 @@ mod tests {
     #[test]
     fn test_audio_guard_prevents_hibernation() {
         let mut manager = TabManager::new(1);
-        let tab1 = manager.create_tab("https://youtube.com");
-        
+        let (tab1, _) = manager.create_tab("https://youtube.com");
+
         // Mark tab1 as playing audio
         manager.get_tab_mut(tab1).unwrap().is_audio_playing = true;
 
         // Opening tab2 should NOT hibernate tab1 because of audio guard
-        let tab2 = manager.create_tab("https://reddit.com");
+        let (tab2, hibernated) = manager.create_tab("https://reddit.com");
+        assert!(hibernated.is_empty());
         assert_eq!(manager.get_tab(tab1).unwrap().state, TabState::Idle);
         assert_eq!(manager.get_tab(tab2).unwrap().state, TabState::Active);
     }
@@ -200,14 +244,49 @@ mod tests {
     #[test]
     fn test_tab_closure_and_neighbor_activation() {
         let mut manager = TabManager::new(3);
-        let _tab1 = manager.create_tab("https://tab1.com");
-        let tab2 = manager.create_tab("https://tab2.com");
-        let tab3 = manager.create_tab("https://tab3.com");
+        let (_tab1, _) = manager.create_tab("https://tab1.com");
+        let (tab2, _) = manager.create_tab("https://tab2.com");
+        let (tab3, _) = manager.create_tab("https://tab3.com");
 
         // Close active tab3, should activate tab2
         assert_eq!(manager.close_tab(tab3), Some(tab2));
         assert_eq!(manager.active_tab_id, Some(tab2));
         assert_eq!(manager.get_tab(tab2).unwrap().state, TabState::Active);
         assert_eq!(manager.tab_count(), 2);
+    }
+
+    #[test]
+    fn test_cyclic_navigation() {
+        let mut manager = TabManager::new(3);
+        let (tab1, _) = manager.create_tab("https://tab1.com");
+        let (tab2, _) = manager.create_tab("https://tab2.com");
+
+        manager.switch_to_tab(tab1);
+        assert_eq!(manager.next_tab_id(), Some(tab2));
+        assert_eq!(manager.prev_tab_id(), Some(tab2));
+    }
+
+    #[test]
+    fn test_scale_50_tabs_memory_ceiling() {
+        // Strict ceiling: only 3 active tabs allowed in RAM
+        let mut manager = TabManager::new(3);
+
+        // Open 50 tabs sequentially
+        for i in 1..=50 {
+            manager.create_tab(format!("https://benchmark-site-{}.com", i));
+        }
+
+        assert_eq!(manager.tab_count(), 50);
+        assert_eq!(manager.active_memory_count(), 3);
+        assert_eq!(manager.sleeping_tab_count(), 47);
+
+        // Verify that jumping to any older sleeping tab wakes it up while keeping total RAM count <= 3
+        let target_tab = 15;
+        let (success, hibernated) = manager.switch_to_tab(target_tab);
+        assert!(success);
+        assert_eq!(manager.active_memory_count(), 3);
+        assert_eq!(manager.sleeping_tab_count(), 47);
+        assert!(!hibernated.is_empty());
+        assert_eq!(manager.get_tab(target_tab).unwrap().state, TabState::Active);
     }
 }

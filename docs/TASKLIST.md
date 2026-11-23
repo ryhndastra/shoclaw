@@ -40,11 +40,11 @@
 ---
 
 ### Phase 4: Aggressive Tab Hibernation Engine
-- [ ] Implement `max_active_tabs` enforcement in `TabManager`
-- [ ] Implement WebKit teardown (`drop(webview)`) on tab hibernation
-- [ ] Implement instant WebKit reconstruction on wake-from-sleep
-- [ ] Implement Audio Guard: detect media playback to prevent active streaming tabs from sleeping
-- [ ] Measure and benchmark RAM consumption across 10, 20, and 50 open tabs
+- [x] Implement `max_active_tabs` enforcement in `TabManager`
+- [x] Implement WebKit teardown (`drop(webview)`) on tab hibernation
+- [x] Implement instant WebKit reconstruction on wake-from-sleep
+- [x] Implement Audio Guard: detect media playback to prevent active streaming tabs from sleeping
+- [x] Measure and benchmark RAM consumption across 10, 20, and 50 open tabs
 
 ---
 

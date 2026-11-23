@@ -1,0 +1,12 @@
+# Nix & Environment
+.direnv/
+result
+
+# Rust / Cargo build artifacts
+/target/
+
+# Local session tracking & agent metadata
+.opencode/
+session.md
+AGENTS.md
+agents.md

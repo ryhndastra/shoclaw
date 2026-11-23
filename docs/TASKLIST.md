@@ -1,7 +1,7 @@
 # Master Tasklist & Implementation Roadmap
 
 ## Project: Shoclaw Browser
-**Current Phase:** Phase 1 (Foundation & Environment)  
+**Current Phase:** Phase 6 (Floating Command Palette)  
 **Status Key:**
 - `[ ]` Pending
 - `[-]` In Progress
@@ -49,13 +49,13 @@
 ---
 
 ### Phase 5: Hybrid UI & Shoclaw Startpage
-- [ ] Design and embed local "Shoclaw Startpage" (embedded zero-latency HTML/CSS/JS with logo, digital clock, search bar, and shortcuts)
-- [ ] Design sleek, dark-themed HTML/CSS/JS assets for the sidebar (embedded via `include_str!`)
-- [ ] Implement Mode `expanded` (220px fixed vertical sidebar with tab titles and status)
-- [ ] Implement Mode `compact` (48px fixed icon-only vertical sidebar)
-- [ ] Implement Mode `hidden` (100% full-bleed web canvas)
-- [ ] Implement Mode `autohide` (mouse edge hover trigger for slide-in sidebar)
-- [ ] Implement IPC protocol for bidirectional communication between Rust host and UI shell
+- [x] Design and embed local "Shoclaw Startpage" (`assets/shoclaw_startpage.html`) with embedded claw emblem, digital clock, search engine switcher, and quick shortcuts (pure HTML/CSS, zero external CDN frameworks)
+- [x] Design sleek, dark-themed 250px vertical sidebar (`assets/shoclaw_sidebar_250px.html`) with dynamic tab list, active/idle/sleeping (0 MB) status badges, audio indicators, and navigation controls
+- [x] Implement Mode `expanded` (250px fixed vertical sidebar with tab titles and status)
+- [x] Implement Mode `compact` (48px fixed icon-only vertical sidebar)
+- [x] Implement Mode `hidden` (100% full-bleed web canvas)
+- [x] Implement Mode `autohide` (mouse edge hover trigger for slide-in sidebar)
+- [x] Implement IPC protocol (`AppEvent`) for bidirectional communication between Rust host and UI shell (`new_tab`, `switch_tab`, `close_tab`, `toggle_sidebar`, `navigate`, `go_back`, `go_forward`, `reload`, `audio_state`, `title_changed`)
 
 ---
 

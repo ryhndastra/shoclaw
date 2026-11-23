@@ -65,7 +65,7 @@ impl Tab {
 
     pub fn mark_sleeping(&mut self) {
         self.state = TabState::Sleeping;
-        self.webview = None; // Explicit drop: WebKit destroys DOM and releases RAM
+        self.webview = None;
     }
 
     pub fn is_sleeping(&self) -> bool {

@@ -25,6 +25,7 @@ pub fn normalize_url(input: &str, search_template: &str) -> String {
         || trimmed.starts_with("https://")
         || trimmed.starts_with("file://")
         || trimmed.starts_with("about:")
+        || trimmed.starts_with("shoclaw://")
     {
         return trimmed.to_string();
     }
@@ -89,6 +90,10 @@ mod tests {
         assert_eq!(
             normalize_url("http://insecure.example.com", DUCKDUCKGO),
             "http://insecure.example.com"
+        );
+        assert_eq!(
+            normalize_url("shoclaw://start", DUCKDUCKGO),
+            "shoclaw://start"
         );
     }
 

@@ -24,7 +24,6 @@ impl TabManager {
         let id = self.next_id;
         self.next_id += 1;
 
-        // Transition current active tab to Idle
         if let Some(active_id) = self.active_tab_id {
             if let Some(active_tab) = self.get_tab_mut(active_id) {
                 active_tab.mark_idle();
@@ -46,7 +45,6 @@ impl TabManager {
             return (false, Vec::new());
         }
 
-        // Demote current active tab to Idle
         if let Some(curr_active) = self.active_tab_id {
             if curr_active != id {
                 if let Some(tab) = self.get_tab_mut(curr_active) {
@@ -55,7 +53,6 @@ impl TabManager {
             }
         }
 
-        // Promote requested tab to Active
         if let Some(tab) = self.get_tab_mut(id) {
             tab.mark_active();
             self.active_tab_id = Some(id);
@@ -70,14 +67,13 @@ impl TabManager {
     pub fn close_tab(&mut self, id: u64) -> Option<u64> {
         let index = self.tabs.iter().position(|t| t.id == id)?;
         let mut tab = self.tabs.remove(index);
-        tab.mark_sleeping(); // Ensure webview drop on close
+        tab.mark_sleeping();
 
         if self.tabs.is_empty() {
             self.active_tab_id = None;
             return None;
         }
 
-        // If the closed tab was active, activate adjacent tab
         if self.active_tab_id == Some(id) {
             let next_index = if index >= self.tabs.len() {
                 self.tabs.len() - 1
@@ -103,7 +99,7 @@ impl TabManager {
 
         let excess = loaded_count - self.max_active_tabs;
 
-        // Gather candidate tabs that are currently loaded in RAM and can hibernate, sorted by oldest access (LRU)
+        // Candidate tabs ordered by least recent access (LRU)
         let mut candidates: Vec<(u64, std::time::Instant)> = self
             .tabs
             .iter()

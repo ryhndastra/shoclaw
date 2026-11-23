@@ -1,4 +1,4 @@
-use super::tab_item::{Tab, TabState};
+use super::tab_item::Tab;
 
 #[derive(Debug)]
 pub struct TabManager {
@@ -142,6 +142,7 @@ impl TabManager {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use super::super::tab_item::TabState;
 
     #[test]
     fn test_tab_creation_and_activation() {

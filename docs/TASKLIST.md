@@ -31,11 +31,11 @@
 ---
 
 ### Phase 3: Core Window & WebKit Runtime
-- [ ] Implement `tao` native window initialization with custom window decorations
-- [ ] Integrate `wry` WebKit runtime attached to the native window
-- [ ] Configure WebKit preferences (hardware acceleration, media codecs, cookies persistence)
-- [ ] Handle window resize events and dynamic viewport bounds
-- [ ] Build basic navigation controls (load URL, back, forward, reload)
+- [x] Implement `tao` native window initialization with custom window decorations
+- [x] Integrate `wry` WebKit runtime attached to the native window
+- [x] Configure WebKit preferences (hardware acceleration, media codecs, cookies persistence)
+- [x] Handle window resize events and dynamic viewport bounds
+- [x] Build basic navigation controls (load URL, back, forward, reload)
 
 ---
 
@@ -48,7 +48,8 @@
 
 ---
 
-### Phase 5: Hybrid UI (Sidebar & Edge Detection)
+### Phase 5: Hybrid UI & Shoclaw Startpage
+- [ ] Design and embed local "Shoclaw Startpage" (embedded zero-latency HTML/CSS/JS with logo, digital clock, search bar, and shortcuts)
 - [ ] Design sleek, dark-themed HTML/CSS/JS assets for the sidebar (embedded via `include_str!`)
 - [ ] Implement Mode `expanded` (220px fixed vertical sidebar with tab titles and status)
 - [ ] Implement Mode `compact` (48px fixed icon-only vertical sidebar)

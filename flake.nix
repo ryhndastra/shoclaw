@@ -16,12 +16,14 @@
         gtk3
         webkitgtk_4_1
         glib
+        glib-networking
         libsoup_3
         openssl
       ];
       shellHook = ''
         export PATH="$HOME/.cargo/bin:$PATH"
-        export LD_LIBRARY_PATH="${pkgs.lib.makeLibraryPath (with pkgs; [ gtk3 webkitgtk_4_1 glib libsoup_3 openssl ])}:$LD_LIBRARY_PATH"
+        export GIO_MODULE_DIR="${pkgs.glib-networking}/lib/gio/modules"
+        export LD_LIBRARY_PATH="${pkgs.lib.makeLibraryPath (with pkgs; [ gtk3 webkitgtk_4_1 glib glib-networking libsoup_3 openssl ])}:$LD_LIBRARY_PATH"
       '';
     };
   };

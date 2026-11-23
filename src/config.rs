@@ -28,11 +28,11 @@ pub struct GeneralConfig {
 }
 
 fn default_homepage() -> String {
-    "https://duckduckgo.com".to_string()
+    "https://google.com".to_string()
 }
 
 fn default_search_engine() -> String {
-    "https://duckduckgo.com/?q={}".to_string()
+    "https://www.google.com/search?q={}".to_string()
 }
 
 impl Default for GeneralConfig {
@@ -224,7 +224,7 @@ mod tests {
     fn test_default_config_values() {
         let config = Config::default();
         assert_eq!(config.general.sidebar_mode, SidebarMode::Autohide);
-        assert_eq!(config.general.homepage, "https://duckduckgo.com");
+        assert_eq!(config.general.homepage, "https://google.com");
         assert_eq!(config.performance.max_active_tabs, 3);
         assert_eq!(config.performance.hibernate_after_minutes, 10);
         assert_eq!(config.appearance.theme, "dark");
@@ -255,7 +255,7 @@ mod tests {
 
         let parsed: Config = toml::from_str(partial_toml).expect("Failed to parse partial TOML");
         assert_eq!(parsed.general.sidebar_mode, SidebarMode::Compact);
-        assert_eq!(parsed.general.homepage, "https://duckduckgo.com");
+        assert_eq!(parsed.general.homepage, "https://google.com");
         assert_eq!(parsed.performance.max_active_tabs, 5);
         assert_eq!(parsed.performance.hibernate_after_minutes, 10);
         assert_eq!(parsed.appearance.theme, "dark");

@@ -14,6 +14,19 @@ use tao::{
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     #[cfg(target_os = "linux")]
     {
+        // Force SHM transport for WebKit DMA-BUF on NVIDIA / Wayland to prevent WebProcess crashes and blank windows.
+        if std::env::var_os("WEBKIT_DMABUF_RENDERER_FORCE_SHM").is_none() {
+            std::env::set_var("WEBKIT_DMABUF_RENDERER_FORCE_SHM", "1");
+        }
+
+        // Demote hardware VA-API decoders on NVIDIA / hybrid GPUs where Intel media driver causes assertion aborts.
+        if std::env::var_os("GST_PLUGIN_FEATURE_RANK").is_none() {
+            std::env::set_var(
+                "GST_PLUGIN_FEATURE_RANK",
+                "vah264dec:NONE,vah265dec:NONE,vavp8dec:NONE,vavp9dec:NONE,vaav1dec:NONE,vajpegdec:NONE,vampeg2dec:NONE,vacompositor:NONE,vadeinterlace:NONE,vapostproc:NONE,vaapisink:NONE,vaapidecodebin:NONE",
+            );
+        }
+
         // Software renderer fallback when explicitly requested.
         if std::env::var_os("SHOCLAW_SOFTWARE_RENDER").is_some() {
             std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");

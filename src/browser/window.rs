@@ -12,7 +12,7 @@ use gtk::prelude::*;
 #[cfg(target_os = "linux")]
 use tao::platform::unix::WindowExtUnix;
 #[cfg(target_os = "linux")]
-use wry::WebViewBuilderExtUnix;
+use wry::{WebViewBuilderExtUnix, WebViewExtUnix};
 
 use crate::config::SidebarMode;
 use crate::tab::{TabManager, TabState};
@@ -96,6 +96,40 @@ impl BrowserWindow {
         Ok(browser_window)
     }
 
+    /// Synchronizes content webview bounds with GTK Fixed container layout.
+    fn sync_content_bounds(&self, webview: &WebView, content_rect: wry::Rect) {
+        let _ = webview.set_bounds(content_rect);
+
+        #[cfg(target_os = "linux")]
+        {
+            let widget = webview.webview();
+            let scale_factor = widget.scale_factor() as f64;
+            let (width, height) = content_rect.size.to_logical::<i32>(scale_factor).into();
+            let (x, y) = content_rect.position.to_logical::<i32>(scale_factor).into();
+
+            self.fixed.move_(&widget, x, y);
+            widget.set_size_request(width, height);
+        }
+    }
+
+    /// Synchronizes sidebar webview bounds with GTK Fixed container layout.
+    fn sync_sidebar_bounds(&self, webview: &WebView, sidebar_rect: wry::Rect, visible: bool) {
+        let _ = webview.set_bounds(sidebar_rect);
+        let _ = webview.set_visible(visible);
+
+        #[cfg(target_os = "linux")]
+        {
+            let widget = webview.webview();
+            let scale_factor = widget.scale_factor() as f64;
+            let (width, height) = sidebar_rect.size.to_logical::<i32>(scale_factor).into();
+            let (x, y) = sidebar_rect.position.to_logical::<i32>(scale_factor).into();
+
+            self.fixed.move_(&widget, x, y);
+            widget.set_size_request(width, height);
+            widget.set_visible(visible);
+        }
+    }
+
     /// Spawns the dedicated vertical sidebar WebKit instance.
     fn spawn_sidebar_webview(&self) -> Result<WebView, Box<dyn std::error::Error>> {
         let proxy = self.proxy.clone();
@@ -155,7 +189,7 @@ impl BrowserWindow {
         #[cfg(not(target_os = "linux"))]
         let webview = builder.build(&self.window)?;
 
-        let _ = webview.set_visible(self.layout.is_sidebar_visible());
+        self.sync_sidebar_bounds(&webview, sidebar_rect, self.layout.is_sidebar_visible());
         Ok(webview)
     }
 
@@ -240,6 +274,27 @@ impl BrowserWindow {
         #[cfg(not(target_os = "linux"))]
         let webview = builder.build(&self.window)?;
 
+        #[cfg(target_os = "linux")]
+        {
+            use webkit2gtk::{WebContextExt, WebViewExt};
+            let wk = webview.webview();
+            wk.connect_load_failed_with_tls_errors(|wv, failing_uri, cert, _errors| {
+                println!("[TLS Guard] Intercepted/Invalid TLS certificate on {}, allowing exception...", failing_uri);
+                if let Some(host) = failing_uri
+                    .split("://")
+                    .nth(1)
+                    .and_then(|s| s.split('/').next())
+                    .and_then(|s| s.split(':').next())
+                {
+                    if let Some(ctx) = wv.context() {
+                        ctx.allow_tls_certificate_for_host(cert, host);
+                    }
+                }
+                wv.load_uri(failing_uri);
+                true
+            });
+        }
+
         Ok(webview)
     }
 
@@ -266,7 +321,14 @@ impl BrowserWindow {
 
         let (new_id, hibernated_ids) = self.tabs.create_tab(url);
         let webview = self.spawn_content_webview(new_id, url)?;
+        let window_size = self.window.inner_size();
+        let scale = self.window.scale_factor();
+        let logical = window_size.to_logical::<f64>(scale);
+        let (_, content_rect) = self.layout.compute_bounds(logical.width, logical.height);
+        self.sync_content_bounds(&webview, content_rect);
         let _ = webview.set_visible(true);
+        #[cfg(target_os = "linux")]
+        self.fixed.queue_resize();
 
         if let Some(tab) = self.tabs.get_tab_mut(new_id) {
             tab.attach_webview(webview);
@@ -327,7 +389,7 @@ impl BrowserWindow {
                 target_id, url
             );
             let webview = self.spawn_content_webview(target_id, &url)?;
-            let _ = webview.set_bounds(content_rect);
+            self.sync_content_bounds(&webview, content_rect);
             let _ = webview.set_visible(true);
 
             if let Some(tab) = self.tabs.get_tab_mut(target_id) {
@@ -335,10 +397,12 @@ impl BrowserWindow {
             }
         } else if let Some(tab) = self.tabs.get_tab(target_id) {
             if let Some(wv) = &tab.webview {
-                let _ = wv.set_bounds(content_rect);
+                self.sync_content_bounds(wv, content_rect);
                 let _ = wv.set_visible(true);
             }
         }
+        #[cfg(target_os = "linux")]
+        self.fixed.queue_resize();
 
         let (success, hibernated_ids) = self.tabs.switch_to_tab(target_id);
 
@@ -389,7 +453,7 @@ impl BrowserWindow {
                     .map(|t| t.url.clone())
                     .unwrap_or_else(|| "shoclaw://start".to_string());
                 let webview = self.spawn_content_webview(next_id, &url)?;
-                let _ = webview.set_bounds(content_rect);
+                self.sync_content_bounds(&webview, content_rect);
                 let _ = webview.set_visible(true);
 
                 if let Some(tab) = self.tabs.get_tab_mut(next_id) {
@@ -397,10 +461,12 @@ impl BrowserWindow {
                 }
             } else if let Some(tab) = self.tabs.get_tab(next_id) {
                 if let Some(wv) = &tab.webview {
-                    let _ = wv.set_bounds(content_rect);
+                    self.sync_content_bounds(wv, content_rect);
                     let _ = wv.set_visible(true);
                 }
             }
+            #[cfg(target_os = "linux")]
+            self.fixed.queue_resize();
 
             if let Some(active) = self.tabs.active_tab() {
                 let formatted_title = format!("{} - Shoclaw", active.title);
@@ -528,12 +594,17 @@ impl BrowserWindow {
         let (sidebar_rect, content_rect) = self.layout.compute_bounds(size.width, size.height);
 
         if let Some(sb) = &self.sidebar_webview {
-            let _ = sb.set_bounds(sidebar_rect);
-            let _ = sb.set_visible(self.layout.is_sidebar_visible());
+            self.sync_sidebar_bounds(sb, sidebar_rect, self.layout.is_sidebar_visible());
         }
 
         if let Some(wv) = self.active_webview() {
-            let _ = wv.set_bounds(content_rect);
+            self.sync_content_bounds(wv, content_rect);
+        }
+
+        #[cfg(target_os = "linux")]
+        {
+            use gtk::prelude::*;
+            self.fixed.queue_resize();
         }
 
         Ok(())

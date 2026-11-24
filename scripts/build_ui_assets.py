@@ -488,7 +488,7 @@ STARTPAGE_HTML = f"""<!DOCTYPE html>
           </div>
           <div class="popover-row">
             <span>Search engine</span>
-            <span id="popover-engine-label" class="popover-badge">DuckDuckGo</span>
+            <span id="popover-engine-label" class="popover-badge">Google</span>
           </div>
         </div>
       </div>
@@ -556,15 +556,15 @@ STARTPAGE_HTML = f"""<!DOCTYPE html>
             <span class="shortcut-label">Reddit</span>
           </a>
 
-          <!-- DuckDuckGo -->
-          <a href="https://duckduckgo.com" class="shortcut-card" data-url="https://duckduckgo.com">
+          <!-- Google -->
+          <a href="https://www.google.com" class="shortcut-card" data-url="https://www.google.com">
             <span class="shortcut-icon-box">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
                 <circle cx="11" cy="11" r="8"></circle>
                 <path d="m21 21-4.3-4.3"></path>
               </svg>
             </span>
-            <span class="shortcut-label">DuckDuckGo</span>
+            <span class="shortcut-label">Google</span>
           </a>
 
           <!-- Wikipedia -->
@@ -658,9 +658,9 @@ STARTPAGE_HTML = f"""<!DOCTYPE html>
       const shortcutsGrid = document.getElementById('shortcuts-grid');
 
       const engines = [
+        {{ name: 'Google', url: 'https://www.google.com/search?q=' }},
         {{ name: 'DuckDuckGo', url: 'https://duckduckgo.com/?q=' }},
         {{ name: 'Brave', url: 'https://search.brave.com/search?q=' }},
-        {{ name: 'Google', url: 'https://www.google.com/search?q=' }},
         {{ name: 'Bing', url: 'https://www.bing.com/search?q=' }}
       ];
 
@@ -1383,7 +1383,7 @@ SIDEBAR_HTML = f"""<!DOCTYPE html>
           <path d="M9 15.5c1 1 2.5 1.5 3 1.5s2-.5 3-1.5"></path>
         </svg>
       </button>
-      <button type="button" class="pinned-tile" data-action="open-pinned" data-url="https://duckduckgo.com" title="DuckDuckGo">
+      <button type="button" class="pinned-tile" data-action="open-pinned" data-url="https://google.com" title="Google">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
           <circle cx="11" cy="11" r="8"></circle>
           <path d="m21 21-4.3-4.3"></path>

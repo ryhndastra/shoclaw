@@ -75,6 +75,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let event_loop = EventLoopBuilder::<AppEvent>::with_user_event().build();
     let proxy = event_loop.create_proxy();
 
+    // Global WebKitGTK TLS Policy: ignore certificate validation errors to prevent ISP hijacking / captive portal aborts
+    #[cfg(target_os = "linux")]
+    {
+        use webkit2gtk::{WebContextExt, WebsiteDataManagerExt};
+        if let Some(context) = webkit2gtk::WebContext::default() {
+            #[allow(deprecated)]
+            context.set_tls_errors_policy(webkit2gtk::TLSErrorsPolicy::Ignore);
+            if let Some(dm) = context.website_data_manager() {
+                dm.set_tls_errors_policy(webkit2gtk::TLSErrorsPolicy::Ignore);
+            }
+        }
+    }
+
     let mut browser_window = BrowserWindow::new(
         &event_loop,
         proxy,
@@ -82,6 +95,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         config.performance.max_active_tabs,
         config.general.sidebar_mode,
     )?;
+
+    // Initial layout synchronization to match GTK container with starting window geometry
+    let initial_size = browser_window.window.inner_size();
+    let scale = browser_window.window.scale_factor();
+    let logical_size = initial_size.to_logical::<f64>(scale);
+    let _ = browser_window.handle_resize(logical_size);
 
     println!(
         "Shoclaw running with max_active_tabs = {}, sidebar_mode = {:?}",
@@ -143,6 +162,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 WindowEvent::Resized(physical_size) => {
                     let scale = browser_window.window.scale_factor();
                     let logical_size = physical_size.to_logical::<f64>(scale);
+                    let _ = browser_window.handle_resize(logical_size);
+                }
+                WindowEvent::ScaleFactorChanged { new_inner_size, scale_factor } => {
+                    let logical_size = new_inner_size.to_logical::<f64>(scale_factor);
                     let _ = browser_window.handle_resize(logical_size);
                 }
                 WindowEvent::ModifiersChanged(new_modifiers) => {

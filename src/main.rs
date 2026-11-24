@@ -42,28 +42,34 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         // Discover GStreamer plugins for media playback on NixOS.
         if std::env::var_os("GST_PLUGIN_SYSTEM_PATH_1_0").is_none() {
-            let mut gst_paths = Vec::new();
+            let mut version_paths: std::collections::HashMap<String, Vec<String>> = std::collections::HashMap::new();
             if let Ok(entries) = std::fs::read_dir("/nix/store") {
                 for entry in entries.flatten() {
                     let name = entry.file_name();
                     let name_str = name.to_string_lossy();
-                    if (name_str.contains("gst-plugins-base")
-                        || name_str.contains("gst-plugins-good")
-                        || name_str.contains("gst-plugins-bad")
-                        || name_str.contains("gst-plugins-ugly")
-                        || name_str.contains("gstreamer-"))
-                        && !name_str.ends_with(".drv")
-                        && !name_str.ends_with(".tar.xz")
-                    {
-                        let plugin_dir = entry.path().join("lib/gstreamer-1.0");
-                        if plugin_dir.exists() && !gst_paths.contains(&plugin_dir.to_string_lossy().to_string()) {
-                            gst_paths.push(plugin_dir.to_string_lossy().to_string());
+                    if !name_str.ends_with(".drv") && !name_str.ends_with(".tar.xz") {
+                        let is_target_pkg = name_str.contains("-gstreamer-")
+                            || name_str.contains("-gst-plugins-base-")
+                            || name_str.contains("-gst-plugins-good-")
+                            || name_str.contains("-gst-plugins-bad-")
+                            || name_str.contains("-gst-plugins-ugly-");
+                        if is_target_pkg {
+                            let plugin_dir = entry.path().join("lib/gstreamer-1.0");
+                            if plugin_dir.exists() {
+                                if let Some(ver) = name_str.rsplit('-').next() {
+                                    let list = version_paths.entry(ver.to_string()).or_default();
+                                    let path_str = plugin_dir.to_string_lossy().to_string();
+                                    if !list.contains(&path_str) {
+                                        list.push(path_str);
+                                    }
+                                }
+                            }
                         }
                     }
                 }
             }
-            if !gst_paths.is_empty() {
-                let joined = gst_paths.join(":");
+            if let Some((_, best_paths)) = version_paths.into_iter().max_by_key(|(_, paths)| paths.len()) {
+                let joined = best_paths.join(":");
                 std::env::set_var("GST_PLUGIN_SYSTEM_PATH_1_0", joined);
             }
         }

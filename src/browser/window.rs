@@ -412,6 +412,10 @@ impl BrowserWindow {
                 }
                 true
             });
+            wk.connect_web_process_terminated(|wv, reason| {
+                eprintln!("[WebKit Guard] WebProcess terminated ({:?}), reloading...", reason);
+                wv.reload();
+            });
         }
 
         Ok(webview)

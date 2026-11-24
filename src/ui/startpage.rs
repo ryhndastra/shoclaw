@@ -11,5 +11,7 @@ mod tests {
         assert!(STARTPAGE_HTML.contains("shoclaw-search-input"));
         assert!(STARTPAGE_HTML.contains("clock-time"));
         assert!(STARTPAGE_HTML.contains("window.ipc.postMessage"));
+        assert!(STARTPAGE_HTML.contains("sendIPC"));
+        assert!(STARTPAGE_HTML.contains("toggle_palette"));
     }
 }

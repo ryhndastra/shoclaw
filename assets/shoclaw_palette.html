@@ -652,6 +652,12 @@
         }, 30);
       };
 
+      // Exposed hook called from Rust host when palette closes
+      window.__shoclaw_close_palette = function () {
+        backdrop.classList.remove('visible');
+        input.blur();
+      };
+
       // Initial render
       updateResults();
     })();

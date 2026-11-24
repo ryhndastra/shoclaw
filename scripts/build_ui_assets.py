@@ -642,6 +642,12 @@ STARTPAGE_HTML = f"""<!DOCTYPE html>
 
   <script>
     (function () {{
+      function sendIPC(msg) {{
+        if (window.ipc && typeof window.ipc.postMessage === 'function') {{
+          window.ipc.postMessage(JSON.stringify(msg));
+        }}
+      }}
+
       const clockEl = document.getElementById('shoclaw-clock');
       const statusEl = document.getElementById('shoclaw-status-text');
       const settingsBtn = document.getElementById('quick-settings-btn');
@@ -709,7 +715,7 @@ STARTPAGE_HTML = f"""<!DOCTYPE html>
 
       // Keyboard navigation
       document.addEventListener('keydown', function (e) {{
-        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {{
+        if ((e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === 'k' || e.code === 'KeyK')) {{
           e.preventDefault();
           sendIPC({{ type: 'toggle_palette' }});
         }} else if (e.key === 'Escape') {{
@@ -721,7 +727,8 @@ STARTPAGE_HTML = f"""<!DOCTYPE html>
       const kbdBtn = document.querySelector('.kbd-shortcut');
       if (kbdBtn) {{
         kbdBtn.style.cursor = 'pointer';
-        kbdBtn.addEventListener('click', function () {{
+        kbdBtn.addEventListener('click', function (e) {{
+          e.stopPropagation();
           sendIPC({{ type: 'toggle_palette' }});
         }});
       }}
@@ -1508,7 +1515,7 @@ SIDEBAR_HTML = f"""<!DOCTYPE html>
       }};
 
       window.addEventListener('keydown', function (e) {{
-        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {{
+        if ((e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === 'k' || e.code === 'KeyK')) {{
           e.preventDefault();
           sendIPC({{ type: 'toggle_palette' }});
         }}

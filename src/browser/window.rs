@@ -104,9 +104,9 @@ impl BrowserWindow {
 
         let sidebar_wv = browser_window.spawn_sidebar_webview()?;
         browser_window.sidebar_webview = Some(sidebar_wv);
+        browser_window.open_tab(initial_url)?;
         let palette_wv = browser_window.spawn_palette_webview()?;
         browser_window.palette_webview = Some(palette_wv);
-        browser_window.open_tab(initial_url)?;
         browser_window.sync_sidebar_ui();
 
         Ok(browser_window)
@@ -325,7 +325,7 @@ impl BrowserWindow {
 
                 // Global Omnibar hotkey inside webview
                 window.addEventListener('keydown', function(e) {
-                    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+                    if ((e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === 'k' || e.code === 'KeyK')) {
                         e.preventDefault();
                         if (window.ipc) {
                             window.ipc.postMessage(JSON.stringify({ type: 'toggle_palette' }));
@@ -389,8 +389,15 @@ impl BrowserWindow {
 
         #[cfg(target_os = "linux")]
         {
-            use webkit2gtk::{WebContextExt, WebViewExt};
+            use webkit2gtk::{WebContextExt, WebViewExt, WebsiteDataManagerExt};
             let wk = webview.webview();
+            if let Some(ctx) = wk.context() {
+                #[allow(deprecated)]
+                ctx.set_tls_errors_policy(webkit2gtk::TLSErrorsPolicy::Ignore);
+                if let Some(dm) = ctx.website_data_manager() {
+                    dm.set_tls_errors_policy(webkit2gtk::TLSErrorsPolicy::Ignore);
+                }
+            }
             wk.connect_load_failed_with_tls_errors(|wv, failing_uri, cert, _errors| {
                 println!("[TLS Guard] Intercepted/Invalid TLS certificate on {}, allowing exception...", failing_uri);
                 if let Some(host) = failing_uri
@@ -403,7 +410,6 @@ impl BrowserWindow {
                         ctx.allow_tls_certificate_for_host(cert, host);
                     }
                 }
-                wv.load_uri(failing_uri);
                 true
             });
         }
@@ -783,6 +789,9 @@ impl BrowserWindow {
             #[cfg(target_os = "linux")]
             {
                 let widget = pwv.webview();
+                if let Some(w) = widget.window() {
+                    w.raise();
+                }
                 widget.grab_focus();
                 self.fixed.queue_resize();
             }
@@ -800,6 +809,7 @@ impl BrowserWindow {
         let logical = window_size.to_logical::<f64>(scale);
 
         if let Some(pwv) = &self.palette_webview {
+            let _ = pwv.evaluate_script("if (window.__shoclaw_close_palette) { window.__shoclaw_close_palette(); }");
             self.sync_palette_bounds(pwv, logical.width, logical.height, false);
             #[cfg(target_os = "linux")]
             self.fixed.queue_resize();

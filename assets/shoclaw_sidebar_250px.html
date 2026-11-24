@@ -697,7 +697,7 @@
       };
 
       window.addEventListener('keydown', function (e) {
-        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        if ((e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === 'k' || e.code === 'KeyK')) {
           e.preventDefault();
           sendIPC({ type: 'toggle_palette' });
         }

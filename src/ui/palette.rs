@@ -11,6 +11,7 @@ mod tests {
         assert!(PALETTE_HTML.contains("palette-input"));
         assert!(PALETTE_HTML.contains("results-list"));
         assert!(PALETTE_HTML.contains("window.__shoclaw_open_palette"));
+        assert!(PALETTE_HTML.contains("window.__shoclaw_close_palette"));
     }
 
     #[test]

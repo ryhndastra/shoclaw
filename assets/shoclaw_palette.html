@@ -1,0 +1,660 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Shoclaw Omnibar</title>
+  <style>
+    :root {
+      --sc-bg: #0d0e15;
+      --sc-card: #13141f;
+      --sc-border: rgba(255, 255, 255, 0.1);
+      --sc-text: #f3f4f6;
+      --sc-muted: #9ca3af;
+      --sc-dim: #4b5563;
+      --sc-accent: #6366f1;
+      --sc-accent-glow: rgba(99, 102, 241, 0.25);
+      --sc-hover: rgba(255, 255, 255, 0.06);
+      --sc-selected: rgba(99, 102, 241, 0.18);
+      --sc-active-border: #ff5722;
+      --sc-green: #10b981;
+      --sc-amber: #f59e0b;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      background: transparent;
+      overflow: hidden;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Inter", sans-serif;
+      font-size: 13px;
+      color: var(--sc-text);
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .palette-backdrop {
+      width: 100%;
+      height: 100%;
+      background: rgba(5, 6, 10, 0.55);
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      padding-top: 10vh;
+      opacity: 0;
+      transition: opacity 0.12s ease-out;
+    }
+
+    .palette-backdrop.visible {
+      opacity: 1;
+    }
+
+    .palette-modal {
+      width: 640px;
+      max-width: 92vw;
+      background: var(--sc-bg);
+      border: 1px solid var(--sc-border);
+      border-radius: 14px;
+      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.7), 0 0 0 1px var(--sc-accent-glow);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      transform: translateY(-8px) scale(0.98);
+      transition: transform 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .palette-backdrop.visible .palette-modal {
+      transform: translateY(0) scale(1);
+    }
+
+    .palette-input-row {
+      display: flex;
+      align-items: center;
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--sc-border);
+      background: var(--sc-card);
+      gap: 12px;
+    }
+
+    .palette-search-icon {
+      color: var(--sc-accent);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .palette-input {
+      flex: 1;
+      background: transparent;
+      border: none;
+      outline: none;
+      font-size: 15px;
+      color: var(--sc-text);
+      font-family: inherit;
+    }
+
+    .palette-input::placeholder {
+      color: var(--sc-dim);
+    }
+
+    .palette-esc-badge {
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--sc-muted);
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 5px;
+      padding: 2px 6px;
+      letter-spacing: 0.03em;
+      cursor: pointer;
+    }
+
+    .palette-esc-badge:hover {
+      background: rgba(255, 255, 255, 0.15);
+      color: var(--sc-text);
+    }
+
+    .palette-list {
+      max-height: 380px;
+      overflow-y: auto;
+      padding: 6px 0;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .palette-list::-webkit-scrollbar {
+      width: 5px;
+    }
+
+    .palette-list::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.15);
+      border-radius: 4px;
+    }
+
+    .palette-section-title {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--sc-dim);
+      padding: 8px 18px 4px;
+      font-weight: 700;
+    }
+
+    .palette-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 9px 18px;
+      cursor: pointer;
+      gap: 12px;
+      border-left: 3px solid transparent;
+      transition: background 0.06s;
+    }
+
+    .palette-item:hover,
+    .palette-item.selected {
+      background: var(--sc-selected);
+      border-left-color: var(--sc-active-border);
+    }
+
+    .item-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 0;
+      flex: 1;
+    }
+
+    .item-icon-box {
+      width: 26px;
+      height: 26px;
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.06);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      color: var(--sc-muted);
+    }
+
+    .palette-item.selected .item-icon-box {
+      color: var(--sc-text);
+      background: rgba(99, 102, 241, 0.3);
+    }
+
+    .item-content {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      gap: 2px;
+    }
+
+    .item-title {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--sc-text);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .item-desc {
+      font-size: 11px;
+      color: var(--sc-muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .item-badges {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-shrink: 0;
+    }
+
+    .badge {
+      font-size: 10px;
+      font-weight: 600;
+      padding: 2px 7px;
+      border-radius: 4px;
+      letter-spacing: 0.02em;
+    }
+
+    .badge-active {
+      background: rgba(16, 185, 129, 0.15);
+      color: #34d399;
+      border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+
+    .badge-sleeping {
+      background: rgba(245, 158, 11, 0.12);
+      color: #fbbf24;
+      border: 1px solid rgba(245, 158, 11, 0.25);
+    }
+
+    .badge-cmd {
+      background: rgba(99, 102, 241, 0.15);
+      color: #a5b4fc;
+      border: 1px solid rgba(99, 102, 241, 0.25);
+    }
+
+    .badge-action {
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--sc-muted);
+    }
+
+    .palette-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 18px;
+      border-top: 1px solid var(--sc-border);
+      background: rgba(0, 0, 0, 0.25);
+      font-size: 11px;
+      color: var(--sc-dim);
+    }
+
+    .footer-hints {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .footer-kbd {
+      color: var(--sc-muted);
+      font-weight: 600;
+    }
+
+    .empty-state {
+      padding: 32px 18px;
+      text-align: center;
+      color: var(--sc-dim);
+      font-size: 13px;
+    }
+  </style>
+</head>
+<body>
+  <div class="palette-backdrop" id="backdrop">
+    <div class="palette-modal" id="modal">
+      <div class="palette-input-row">
+        <div class="palette-search-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="11" cy="11" r="8"></circle>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+          </svg>
+        </div>
+        <input
+          type="text"
+          id="palette-input"
+          class="palette-input"
+          placeholder="Search tabs, enter URL, or type > for commands..."
+          autocomplete="off"
+          spellcheck="false"
+        />
+        <div class="palette-esc-badge" id="close-btn" title="Close (Escape)">ESC</div>
+      </div>
+
+      <div class="palette-list" id="results-list">
+        <!-- Rendered dynamically -->
+      </div>
+
+      <div class="palette-footer">
+        <div class="footer-brand">Shoclaw Omnibar</div>
+        <div class="footer-hints">
+          <span><span class="footer-kbd">↑↓</span> Navigate</span>
+          <span><span class="footer-kbd">↵</span> Select</span>
+          <span><span class="footer-kbd">Esc</span> Close</span>
+          <span><span class="footer-kbd">&gt;</span> Commands</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      function sendIPC(msg) {
+        if (window.ipc) {
+          window.ipc.postMessage(JSON.stringify(msg));
+        }
+      }
+
+      let openTabs = [];
+      let activeTabId = null;
+      let items = [];
+      let selectedIndex = 0;
+
+      const input = document.getElementById('palette-input');
+      const resultsList = document.getElementById('results-list');
+      const backdrop = document.getElementById('backdrop');
+      const closeBtn = document.getElementById('close-btn');
+
+      const builtInCommands = [
+        {
+          id: 'sleep_all',
+          title: 'Hibernate Background Tabs',
+          desc: 'Free memory by forcing all inactive tabs to 0 MB RAM',
+          cmd: '> sleep all',
+          badge: 'RAM Guard',
+          action: () => sendIPC({ type: 'command', command: 'sleep_all' })
+        },
+        {
+          id: 'sidebar_expanded',
+          title: 'Sidebar: Expanded Mode',
+          desc: 'Set vertical sidebar to fixed 250px width',
+          cmd: '> sidebar expanded',
+          badge: 'Layout',
+          action: () => sendIPC({ type: 'command', command: 'sidebar_expanded' })
+        },
+        {
+          id: 'sidebar_compact',
+          title: 'Sidebar: Compact Dock',
+          desc: 'Set vertical sidebar to slim 48px icon-only dock',
+          cmd: '> sidebar compact',
+          badge: 'Layout',
+          action: () => sendIPC({ type: 'command', command: 'sidebar_compact' })
+        },
+        {
+          id: 'sidebar_hidden',
+          title: 'Sidebar: Hidden Full-Bleed',
+          desc: 'Hide sidebar completely for 100% immersive reading',
+          cmd: '> sidebar hidden',
+          badge: 'Layout',
+          action: () => sendIPC({ type: 'command', command: 'sidebar_hidden' })
+        },
+        {
+          id: 'new_tab',
+          title: 'New Tab',
+          desc: 'Open a new browsing tab with Shoclaw startpage',
+          cmd: '> new tab',
+          badge: 'Tab',
+          action: () => sendIPC({ type: 'command', command: 'new_tab' })
+        },
+        {
+          id: 'close_tab',
+          title: 'Close Active Tab',
+          desc: 'Close the current tab and switch to neighbor',
+          cmd: '> close tab',
+          badge: 'Tab',
+          action: () => sendIPC({ type: 'command', command: 'close_tab' })
+        },
+        {
+          id: 'reload',
+          title: 'Reload Page',
+          desc: 'Refresh the active web view',
+          cmd: '> reload',
+          badge: 'Nav',
+          action: () => sendIPC({ type: 'command', command: 'reload' })
+        },
+        {
+          id: 'go_back',
+          title: 'Go Back',
+          desc: 'Navigate to previous page in history',
+          cmd: '> back',
+          badge: 'Nav',
+          action: () => sendIPC({ type: 'command', command: 'go_back' })
+        },
+        {
+          id: 'go_forward',
+          title: 'Go Forward',
+          desc: 'Navigate forward in history',
+          cmd: '> forward',
+          badge: 'Nav',
+          action: () => sendIPC({ type: 'command', command: 'go_forward' })
+        },
+        {
+          id: 'quit',
+          title: 'Quit Shoclaw',
+          desc: 'Safely terminate browser runtime',
+          cmd: '> quit',
+          badge: 'App',
+          action: () => sendIPC({ type: 'command', command: 'quit' })
+        }
+      ];
+
+      function isLikelyUrl(text) {
+        const trimmed = text.trim();
+        if (trimmed.startsWith('http://') || trimmed.startsWith('https://') || trimmed.startsWith('shoclaw://')) {
+          return true;
+        }
+        if (trimmed.startsWith('localhost') || trimmed.startsWith('127.0.0.1')) {
+          return true;
+        }
+        const domainPattern = /^[a-zA-Z0-9-]+(\.[a-zA-Z0-9-]+)+(:[0-9]+)?(\/.*)?$/;
+        return domainPattern.test(trimmed);
+      }
+
+      function updateResults() {
+        const query = input.value.trim();
+        items = [];
+
+        if (query.startsWith('>')) {
+          const cmdQuery = query.slice(1).trim().toLowerCase();
+          const filteredCmds = builtInCommands.filter(c => {
+            if (!cmdQuery) return true;
+            return c.title.toLowerCase().includes(cmdQuery) ||
+                   c.desc.toLowerCase().includes(cmdQuery) ||
+                   c.cmd.toLowerCase().includes(cmdQuery);
+          });
+
+          for (const c of filteredCmds) {
+            items.push({
+              type: 'command',
+              title: c.title,
+              desc: c.desc,
+              badge: c.badge,
+              badgeClass: 'badge-cmd',
+              action: c.action
+            });
+          }
+        } else {
+          // Open tabs fuzzy matching
+          const qLower = query.toLowerCase();
+          const matchedTabs = openTabs.filter(t => {
+            if (!qLower) return true;
+            return (t.title && t.title.toLowerCase().includes(qLower)) ||
+                   (t.url && t.url.toLowerCase().includes(qLower));
+          });
+
+          for (const t of matchedTabs) {
+            const isCurr = t.id === activeTabId;
+            const isSleeping = t.state === 'sleeping';
+            const badgeText = isCurr ? 'Active' : (isSleeping ? '0 MB' : 'Idle');
+            const badgeClass = isCurr ? 'badge-active' : (isSleeping ? 'badge-sleeping' : 'badge-action');
+
+            items.push({
+              type: 'tab',
+              title: t.title || 'Untitled Tab',
+              desc: t.url || '',
+              badge: badgeText,
+              badgeClass: badgeClass,
+              action: () => {
+                sendIPC({ type: 'switch_tab', id: t.id });
+                sendIPC({ type: 'close_palette' });
+              }
+            });
+          }
+
+          // Direct URL or Search options
+          if (query) {
+            if (isLikelyUrl(query)) {
+              items.unshift({
+                type: 'navigate',
+                title: 'Open URL: ' + query,
+                desc: 'Direct network navigation',
+                badge: 'Go',
+                badgeClass: 'badge-cmd',
+                action: () => {
+                  sendIPC({ type: 'navigate', url: query });
+                  sendIPC({ type: 'close_palette' });
+                }
+              });
+            } else {
+              items.push({
+                type: 'search',
+                title: 'Search: "' + query + '"',
+                desc: 'Default search engine query',
+                badge: 'Search',
+                badgeClass: 'badge-cmd',
+                action: () => {
+                  sendIPC({ type: 'navigate', url: query });
+                  sendIPC({ type: 'close_palette' });
+                }
+              });
+            }
+          }
+        }
+
+        if (selectedIndex >= items.length) {
+          selectedIndex = Math.max(0, items.length - 1);
+        }
+
+        renderItems();
+      }
+
+      function renderItems() {
+        resultsList.innerHTML = '';
+
+        if (items.length === 0) {
+          const empty = document.createElement('div');
+          empty.className = 'empty-state';
+          empty.textContent = 'No matching tabs or commands found.';
+          resultsList.appendChild(empty);
+          return;
+        }
+
+        items.forEach((item, index) => {
+          const row = document.createElement('div');
+          row.className = 'palette-item' + (index === selectedIndex ? ' selected' : '');
+          
+          let iconSvg = '';
+          if (item.type === 'command') {
+            iconSvg = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>';
+          } else if (item.type === 'navigate') {
+            iconSvg = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>';
+          } else if (item.type === 'search') {
+            iconSvg = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>';
+          } else {
+            iconSvg = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>';
+          }
+
+          row.innerHTML = `
+            <div class="item-left">
+              <div class="item-icon-box">${iconSvg}</div>
+              <div class="item-content">
+                <span class="item-title">${escapeHtml(item.title)}</span>
+                <span class="item-desc">${escapeHtml(item.desc)}</span>
+              </div>
+            </div>
+            <div class="item-badges">
+              <span class="badge ${item.badgeClass}">${item.badge}</span>
+            </div>
+          `;
+
+          row.addEventListener('click', () => {
+            selectedIndex = index;
+            executeCurrent();
+          });
+
+          resultsList.appendChild(row);
+        });
+
+        // Ensure selected item is visible
+        const selectedEl = resultsList.children[selectedIndex];
+        if (selectedEl) {
+          selectedEl.scrollIntoView({ block: 'nearest' });
+        }
+      }
+
+      function escapeHtml(str) {
+        if (!str) return '';
+        return str
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;');
+      }
+
+      function executeCurrent() {
+        if (items[selectedIndex]) {
+          items[selectedIndex].action();
+        }
+      }
+
+      // Input listener
+      input.addEventListener('input', () => {
+        selectedIndex = 0;
+        updateResults();
+      });
+
+      // Keyboard listener
+      window.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          sendIPC({ type: 'close_palette' });
+          return;
+        }
+
+        if (e.key === 'ArrowDown') {
+          e.preventDefault();
+          if (items.length > 0) {
+            selectedIndex = (selectedIndex + 1) % items.length;
+            renderItems();
+          }
+          return;
+        }
+
+        if (e.key === 'ArrowUp') {
+          e.preventDefault();
+          if (items.length > 0) {
+            selectedIndex = (selectedIndex - 1 + items.length) % items.length;
+            renderItems();
+          }
+          return;
+        }
+
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          executeCurrent();
+          return;
+        }
+      });
+
+      // Close handlers
+      backdrop.addEventListener('click', (e) => {
+        if (e.target === backdrop) {
+          sendIPC({ type: 'close_palette' });
+        }
+      });
+
+      closeBtn.addEventListener('click', () => {
+        sendIPC({ type: 'close_palette' });
+      });
+
+      // Exposed hook called from Rust host when palette opens
+      window.__shoclaw_open_palette = function (data) {
+        openTabs = data.tabs || [];
+        activeTabId = data.active_id;
+        input.value = '';
+        selectedIndex = 0;
+        backdrop.classList.add('visible');
+        updateResults();
+        setTimeout(() => {
+          input.focus();
+        }, 30);
+      };
+
+      // Initial render
+      updateResults();
+    })();
+  </script>
+</body>
+</html>

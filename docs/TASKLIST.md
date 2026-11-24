@@ -1,7 +1,7 @@
 # Master Tasklist & Implementation Roadmap
 
 ## Project: Shoclaw Browser
-**Current Phase:** Phase 6 (Floating Command Palette)  
+**Current Phase:** Phase 7 (Content Shield & Adblocker)  
 **Status Key:**
 - `[ ]` Pending
 - `[-]` In Progress
@@ -60,11 +60,11 @@
 ---
 
 ### Phase 6: Floating Command Palette (Raycast / Spotlight Omnibar)
-- [ ] Design glassmorphic, centered modal UI for the Command Palette
-- [ ] Implement global shortcut listener (`Ctrl+K` / `Ctrl+T`) to toggle the palette
-- [ ] Implement fuzzy search filtering over open tabs
-- [ ] Implement URL detection vs. default search engine query dispatcher
-- [ ] Implement command execution mode (prefix `>` for internal browser actions)
+- [x] Design glassmorphic, centered modal UI for the Command Palette (`assets/shoclaw_palette.html`)
+- [x] Implement global shortcut listener (`Ctrl+K` / `Ctrl+T`) to toggle the palette across Tao window, sidebar, startpage, and content webviews
+- [x] Implement fuzzy search filtering over open tabs (with real-time memory state badges: Active, Idle, 0 MB Sleeping)
+- [x] Implement URL detection vs. default search engine query dispatcher
+- [x] Implement command execution mode (prefix `>` for internal browser actions: `> sleep all`, `> sidebar expanded`, `> sidebar compact`, `> sidebar hidden`, `> new tab`, `> close tab`, `> reload`, `> back`, `> forward`, `> quit`)
 
 ---
 

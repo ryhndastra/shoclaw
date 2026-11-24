@@ -94,6 +94,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         &config.general.homepage,
         config.performance.max_active_tabs,
         config.general.sidebar_mode,
+        &config.general.homepage,
+        &config.general.search_engine,
     )?;
 
     // Initial layout synchronization to match GTK container with starting window geometry
@@ -134,6 +136,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
                 AppEvent::ToggleSidebarHidden => {
                     let _ = browser_window.toggle_sidebar_hidden();
+                }
+                AppEvent::TogglePalette => {
+                    let _ = browser_window.toggle_palette();
+                }
+                AppEvent::ClosePalette => {
+                    browser_window.hide_palette();
+                }
+                AppEvent::ExecuteCommand(cmd) => {
+                    let _ = browser_window.execute_command(&cmd);
+                }
+                AppEvent::Quit => {
+                    println!("Shoclaw: Exiting cleanly per command.");
+                    *control_flow = ControlFlow::Exit;
                 }
                 AppEvent::Navigate(url) => {
                     let _ = browser_window.navigate_active(&url, &search_engine);
@@ -176,7 +191,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     ..
                 } => {
                     if key_event.state == ElementState::Pressed {
-                        if modifiers.control_key() && key_event.physical_key == KeyCode::KeyT {
+                        if modifiers.control_key() && key_event.physical_key == KeyCode::KeyK {
+                            let _ = browser_window.toggle_palette();
+                        } else if key_event.physical_key == KeyCode::Escape && browser_window.is_palette_open {
+                            browser_window.hide_palette();
+                        } else if modifiers.control_key() && key_event.physical_key == KeyCode::KeyT {
                             let _ = browser_window.open_tab(&homepage);
                         } else if modifiers.control_key() && key_event.physical_key == KeyCode::KeyW {
                             if browser_window.close_active_tab().ok().flatten().is_none() {

@@ -26,10 +26,14 @@ pub enum AppEvent {
     CloseTab(u64),
     ToggleSidebar,
     ToggleSidebarHidden,
+    TogglePalette,
+    ClosePalette,
+    ExecuteCommand(String),
     Navigate(String),
     GoBack,
     GoForward,
     Reload,
+    Quit,
     AudioState { tab_id: u64, playing: bool },
     TitleChanged { tab_id: u64, title: String },
 }
@@ -41,6 +45,10 @@ pub struct BrowserWindow {
     pub audio_states: Arc<Mutex<HashMap<u64, bool>>>,
     pub layout: UiLayout,
     pub sidebar_webview: Option<WebView>,
+    pub palette_webview: Option<WebView>,
+    pub is_palette_open: bool,
+    pub homepage: String,
+    pub search_engine: String,
     pub proxy: EventLoopProxy<AppEvent>,
     #[cfg(target_os = "linux")]
     pub fixed: gtk::Fixed,
@@ -53,6 +61,8 @@ impl BrowserWindow {
         initial_url: &str,
         max_active_tabs: usize,
         sidebar_mode: SidebarMode,
+        homepage: &str,
+        search_engine: &str,
     ) -> Result<Self, Box<dyn std::error::Error>> {
         let window = WindowBuilder::new()
             .with_title("Shoclaw")
@@ -83,6 +93,10 @@ impl BrowserWindow {
             audio_states,
             layout,
             sidebar_webview: None,
+            palette_webview: None,
+            is_palette_open: false,
+            homepage: homepage.to_string(),
+            search_engine: search_engine.to_string(),
             proxy,
             #[cfg(target_os = "linux")]
             fixed,
@@ -90,6 +104,8 @@ impl BrowserWindow {
 
         let sidebar_wv = browser_window.spawn_sidebar_webview()?;
         browser_window.sidebar_webview = Some(sidebar_wv);
+        let palette_wv = browser_window.spawn_palette_webview()?;
+        browser_window.palette_webview = Some(palette_wv);
         browser_window.open_tab(initial_url)?;
         browser_window.sync_sidebar_ui();
 
@@ -130,6 +146,26 @@ impl BrowserWindow {
         }
     }
 
+    /// Synchronizes command palette webview bounds with GTK Fixed container layout.
+    fn sync_palette_bounds(&self, webview: &WebView, width: f64, height: f64, visible: bool) {
+        let palette_rect = wry::Rect {
+            position: wry::dpi::LogicalPosition::new(0.0, 0.0).into(),
+            size: wry::dpi::LogicalSize::new(width, height).into(),
+        };
+        let _ = webview.set_bounds(palette_rect);
+        let _ = webview.set_visible(visible);
+
+        #[cfg(target_os = "linux")]
+        {
+            let widget = webview.webview();
+            let scale_factor = widget.scale_factor() as f64;
+            let (w, h) = palette_rect.size.to_logical::<i32>(scale_factor).into();
+            self.fixed.move_(&widget, 0, 0);
+            widget.set_size_request(w, h);
+            widget.set_visible(visible);
+        }
+    }
+
     /// Spawns the dedicated vertical sidebar WebKit instance.
     fn spawn_sidebar_webview(&self) -> Result<WebView, Box<dyn std::error::Error>> {
         let proxy = self.proxy.clone();
@@ -163,6 +199,9 @@ impl BrowserWindow {
                             "toggle_sidebar" | "toggle-sidebar" => {
                                 let _ = proxy.send_event(AppEvent::ToggleSidebar);
                             }
+                            "toggle_palette" | "open-palette" => {
+                                let _ = proxy.send_event(AppEvent::TogglePalette);
+                            }
                             "navigate" | "open-pinned" | "open_pinned" => {
                                 if let Some(target_url) = val.get("url").and_then(|v| v.as_str()) {
                                     let _ = proxy.send_event(AppEvent::Navigate(target_url.to_string()));
@@ -190,6 +229,67 @@ impl BrowserWindow {
         let webview = builder.build(&self.window)?;
 
         self.sync_sidebar_bounds(&webview, sidebar_rect, self.layout.is_sidebar_visible());
+        Ok(webview)
+    }
+
+    /// Spawns the floating Command Palette (Raycast / Spotlight Omnibar) WebKit instance.
+    fn spawn_palette_webview(&self) -> Result<WebView, Box<dyn std::error::Error>> {
+        let proxy = self.proxy.clone();
+        let window_size = self.window.inner_size();
+        let scale = self.window.scale_factor();
+        let logical = window_size.to_logical::<f64>(scale);
+        let palette_rect = wry::Rect {
+            position: wry::dpi::LogicalPosition::new(0.0, 0.0).into(),
+            size: wry::dpi::LogicalSize::new(logical.width, logical.height).into(),
+        };
+
+        let builder = WebViewBuilder::new()
+            .with_html(crate::ui::PALETTE_HTML)
+            .with_devtools(cfg!(debug_assertions))
+            .with_transparent(true)
+            .with_bounds(palette_rect)
+            .with_ipc_handler(move |req| {
+                let body = req.body();
+                if let Ok(val) = serde_json::from_str::<serde_json::Value>(body) {
+                    if let Some(msg_type) = val.get("type").and_then(|v| v.as_str()) {
+                        match msg_type {
+                            "close_palette" => {
+                                let _ = proxy.send_event(AppEvent::ClosePalette);
+                            }
+                            "switch_tab" => {
+                                if let Some(id) = val.get("id").and_then(|v| v.as_u64()) {
+                                    let _ = proxy.send_event(AppEvent::SwitchTab(id));
+                                }
+                            }
+                            "navigate" => {
+                                if let Some(url) = val.get("url").and_then(|v| v.as_str()) {
+                                    let _ = proxy.send_event(AppEvent::Navigate(url.to_string()));
+                                }
+                            }
+                            "command" => {
+                                if let Some(cmd) = val.get("command").and_then(|v| v.as_str()) {
+                                    let _ = proxy.send_event(AppEvent::ExecuteCommand(cmd.to_string()));
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+            });
+
+        #[cfg(target_os = "linux")]
+        let webview = builder.build_gtk(&self.fixed)?;
+
+        #[cfg(not(target_os = "linux"))]
+        let webview = builder.build(&self.window)?;
+
+        let _ = webview.set_visible(false);
+        #[cfg(target_os = "linux")]
+        {
+            let widget = webview.webview();
+            widget.set_visible(false);
+        }
+
         Ok(webview)
     }
 
@@ -222,6 +322,16 @@ impl BrowserWindow {
                 document.addEventListener('play', checkMedia, true);
                 document.addEventListener('pause', checkMedia, true);
                 document.addEventListener('ended', checkMedia, true);
+
+                // Global Omnibar hotkey inside webview
+                window.addEventListener('keydown', function(e) {
+                    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+                        e.preventDefault();
+                        if (window.ipc) {
+                            window.ipc.postMessage(JSON.stringify({ type: 'toggle_palette' }));
+                        }
+                    }
+                }, true);
             })();
         "#;
 
@@ -261,6 +371,9 @@ impl BrowserWindow {
                                 if let Some(target_url) = val.get("url").and_then(|v| v.as_str()) {
                                     let _ = proxy.send_event(AppEvent::Navigate(target_url.to_string()));
                                 }
+                            }
+                            "toggle_palette" => {
+                                let _ = proxy.send_event(AppEvent::TogglePalette);
                             }
                             _ => {}
                         }
@@ -589,7 +702,7 @@ impl BrowserWindow {
         Ok(())
     }
 
-    /// Handles window resizing and geometry allocation for both views.
+    /// Handles window resizing and geometry allocation for all active views.
     pub fn handle_resize(&self, size: LogicalSize<f64>) -> Result<(), Box<dyn std::error::Error>> {
         let (sidebar_rect, content_rect) = self.layout.compute_bounds(size.width, size.height);
 
@@ -601,6 +714,10 @@ impl BrowserWindow {
             self.sync_content_bounds(wv, content_rect);
         }
 
+        if let Some(pwv) = &self.palette_webview {
+            self.sync_palette_bounds(pwv, size.width, size.height, self.is_palette_open);
+        }
+
         #[cfg(target_os = "linux")]
         {
             use gtk::prelude::*;
@@ -608,6 +725,171 @@ impl BrowserWindow {
         }
 
         Ok(())
+    }
+
+    /// Toggles the floating Command Palette (Omnibar) open or closed.
+    pub fn toggle_palette(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+        if self.is_palette_open {
+            self.hide_palette();
+        } else {
+            self.show_palette()?;
+        }
+        Ok(())
+    }
+
+    /// Shows the floating Command Palette and updates its list of open tabs.
+    pub fn show_palette(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+        self.is_palette_open = true;
+
+        let window_size = self.window.inner_size();
+        let scale = self.window.scale_factor();
+        let logical = window_size.to_logical::<f64>(scale);
+
+        if let Some(pwv) = &self.palette_webview {
+            self.sync_palette_bounds(pwv, logical.width, logical.height, true);
+
+            #[derive(serde::Serialize)]
+            struct TabPaletteDto<'a> {
+                id: u64,
+                title: &'a str,
+                url: &'a str,
+                state: &'static str,
+            }
+
+            let tabs_dto: Vec<TabPaletteDto> = self
+                .tabs
+                .tabs
+                .iter()
+                .map(|t| TabPaletteDto {
+                    id: t.id,
+                    title: &t.title,
+                    url: &t.url,
+                    state: match t.state {
+                        TabState::Active => "active",
+                        TabState::Idle => "idle",
+                        TabState::Sleeping => "sleeping",
+                    },
+                })
+                .collect();
+
+            let payload = serde_json::json!({
+                "tabs": tabs_dto,
+                "active_id": self.tabs.active_tab_id,
+            });
+
+            let script = format!("if (window.__shoclaw_open_palette) {{ window.__shoclaw_open_palette({}); }}", payload);
+            let _ = pwv.evaluate_script(&script);
+
+            #[cfg(target_os = "linux")]
+            {
+                let widget = pwv.webview();
+                widget.grab_focus();
+                self.fixed.queue_resize();
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Hides the floating Command Palette and restores keyboard focus to content.
+    pub fn hide_palette(&mut self) {
+        self.is_palette_open = false;
+
+        let window_size = self.window.inner_size();
+        let scale = self.window.scale_factor();
+        let logical = window_size.to_logical::<f64>(scale);
+
+        if let Some(pwv) = &self.palette_webview {
+            self.sync_palette_bounds(pwv, logical.width, logical.height, false);
+            #[cfg(target_os = "linux")]
+            self.fixed.queue_resize();
+        }
+
+        if let Some(wv) = self.active_webview() {
+            #[cfg(target_os = "linux")]
+            wv.webview().grab_focus();
+        }
+    }
+
+    /// Executes an internal browser command triggered from the Command Palette.
+    pub fn execute_command(&mut self, cmd: &str) -> Result<(), Box<dyn std::error::Error>> {
+        self.hide_palette();
+        println!("[Command Palette] Executing command: {}", cmd);
+        match cmd {
+            "sleep_all" | "hibernate_all" => {
+                self.hibernate_all_background_tabs();
+            }
+            "sidebar_expanded" => {
+                self.layout.mode = SidebarMode::Expanded;
+                self.update_sidebar_mode()?;
+            }
+            "sidebar_compact" => {
+                self.layout.mode = SidebarMode::Compact;
+                self.update_sidebar_mode()?;
+            }
+            "sidebar_hidden" => {
+                self.layout.mode = SidebarMode::Hidden;
+                self.update_sidebar_mode()?;
+            }
+            "new_tab" => {
+                let home = self.homepage.clone();
+                self.open_tab(&home)?;
+            }
+            "close_tab" => {
+                self.close_active_tab()?;
+            }
+            "reload" => {
+                self.reload_active()?;
+            }
+            "go_back" => {
+                self.back_active()?;
+            }
+            "go_forward" => {
+                self.forward_active()?;
+            }
+            "quit" => {
+                let _ = self.proxy.send_event(AppEvent::Quit);
+            }
+            _ => {
+                eprintln!("[Command Palette] Unknown command: {}", cmd);
+            }
+        }
+        Ok(())
+    }
+
+    /// Helper to update the sidebar mode in layout and DOM.
+    pub fn update_sidebar_mode(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+        let mode_str = match self.layout.mode {
+            SidebarMode::Expanded => "expanded",
+            SidebarMode::Compact => "compact",
+            SidebarMode::Hidden => "hidden",
+            SidebarMode::Autohide => "autohide",
+        };
+
+        if let Some(sb) = &self.sidebar_webview {
+            let script = format!("window.__shoclaw_set_mode('{}');", mode_str);
+            let _ = sb.evaluate_script(&script);
+        }
+
+        let window_size = self.window.inner_size();
+        let scale = self.window.scale_factor();
+        let logical = window_size.to_logical::<f64>(scale);
+        self.handle_resize(logical)?;
+        self.sync_sidebar_ui();
+        Ok(())
+    }
+
+    /// Force hibernates all background tabs to 0 MB RAM, keeping only active tab.
+    pub fn hibernate_all_background_tabs(&mut self) {
+        let active_id = self.tabs.active_tab_id;
+        for tab in self.tabs.tabs.iter_mut() {
+            if Some(tab.id) != active_id && !tab.is_audio_playing {
+                println!("[RAM Guard] Force Hibernating Tab {} ({}) to 0 MB RAM", tab.id, tab.url);
+                tab.detach_webview();
+            }
+        }
+        self.dump_memory_summary();
+        self.sync_sidebar_ui();
     }
 
     /// Synchronizes the current tab list and active selection with the sidebar UI shell.

@@ -690,12 +690,20 @@
       document.addEventListener('keydown', function (e) {
         if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
           e.preventDefault();
-          searchInput.focus();
+          sendIPC({ type: 'toggle_palette' });
         } else if (e.key === 'Escape') {
           settingsPopover.classList.remove('is-open');
           addModal.classList.remove('is-open');
         }
       });
+
+      const kbdBtn = document.querySelector('.kbd-shortcut');
+      if (kbdBtn) {
+        kbdBtn.style.cursor = 'pointer';
+        kbdBtn.addEventListener('click', function () {
+          sendIPC({ type: 'toggle_palette' });
+        });
+      }
 
       settingsBtn.addEventListener('click', function () {
         settingsPopover.classList.toggle('is-open');

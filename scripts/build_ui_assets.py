@@ -711,12 +711,20 @@ STARTPAGE_HTML = f"""<!DOCTYPE html>
       document.addEventListener('keydown', function (e) {{
         if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {{
           e.preventDefault();
-          searchInput.focus();
+          sendIPC({{ type: 'toggle_palette' }});
         }} else if (e.key === 'Escape') {{
           settingsPopover.classList.remove('is-open');
           addModal.classList.remove('is-open');
         }}
       }});
+
+      const kbdBtn = document.querySelector('.kbd-shortcut');
+      if (kbdBtn) {{
+        kbdBtn.style.cursor = 'pointer';
+        kbdBtn.addEventListener('click', function () {{
+          sendIPC({{ type: 'toggle_palette' }});
+        }});
+      }}
 
       settingsBtn.addEventListener('click', function () {{
         settingsPopover.classList.toggle('is-open');
@@ -1498,6 +1506,13 @@ SIDEBAR_HTML = f"""<!DOCTYPE html>
         document.body.classList.remove('mode-expanded', 'mode-compact', 'mode-hidden', 'mode-autohide');
         document.body.classList.add('mode-' + mode);
       }};
+
+      window.addEventListener('keydown', function (e) {{
+        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {{
+          e.preventDefault();
+          sendIPC({{ type: 'toggle_palette' }});
+        }}
+      }});
 
       // Delegated click handler
       document.addEventListener('click', function (e) {{

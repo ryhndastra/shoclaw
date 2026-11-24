@@ -696,6 +696,13 @@
         document.body.classList.add('mode-' + mode);
       };
 
+      window.addEventListener('keydown', function (e) {
+        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+          e.preventDefault();
+          sendIPC({ type: 'toggle_palette' });
+        }
+      });
+
       // Delegated click handler
       document.addEventListener('click', function (e) {
         const closeBtn = e.target.closest('[data-action="close-tab"]');
